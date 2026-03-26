@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Puntuación Final</title>
+
+<script src="core.js"></script>
+
+<style>
+body{
+  margin:0;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  color:#fff;
+  font-family:'Segoe UI', Arial;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden; /* 🔥 evita scroll */
+}
+
+header{
+  text-align:center;
+  padding:0.8vh;
+  background:linear-gradient(90deg,#22c55e,#4ade80);
+  color:#022c22;
+}
+
+#main-title{
+  font-size:clamp(20px,2.5vh,50px);
+  font-weight:900;
+}
+
+#viewer{
+  flex:1;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:1vh;
+  opacity:0;
+  transition:opacity 0.5s ease;
+}
+
+/* contador */
+#overlay{
+  position:fixed;
+  bottom:1vh;
+  left:1vw;
+  background:rgba(0,0,0,.6);
+  padding:0.6vh 1vw;
+  border-radius:10px;
+  font-size:clamp(12px,1.2vw,18px);
+}
+
+/* tablas */
+.table-box{
+  width:100%;
+  max-width:1600px;
+  background:rgba(255,255,255,0.05);
+  border-radius:16px;
+  padding:1vh;
+  backdrop-filter:blur(10px);
+}
+
+/* títulos */
+.table-title{
+  font-size:clamp(20px,2.5vh,40px);
+  font-weight:900;
+  text-align:center;
+  margin-bottom:5px;
+  background:linear-gradient(90deg,#4ade80,#22c55e);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+
+.table-subtitle{
+  text-align:center;
+  font-size:clamp(12px,1.4vh,20px);
+  margin-bottom:10px;
+  color:#cbd5f5;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:clamp(14px,1.6vh,22px);
+}
+
+th{
+  background:#22c55e;
+  color:#022c22;
+  padding:6px;
+  text-align:center;
+}
+
+td{
+  padding:6px;
+  border-bottom:1px solid rgba(255,255,255,0.1);
+}
+
+tr:nth-child(even){
+  background:rgba(255,255,255,0.08);
+}
+
+/* alerta */
+.alert-row{
+  animation:blinkRed 1s infinite;
+}
+
+@keyframes blinkRed{
+  0%{background:#7f1d1d;}
+  50%{background:#ef4444;}
+  100%{background:#7f1d1d;}
+}
+
+/* ranking */
+.ranking-box{
+  width:100%;
+  max-width:900px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.ranking-title{
+  font-size:clamp(24px,3vh,46px);
+  font-weight:900;
+  text-align:center;
+  background:linear-gradient(90deg,#facc15,#fde68a);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+
+.ranking-subtitle{
+  text-align:center;
+  font-size:clamp(12px,1.6vh,20px);
+  margin-bottom:10px;
+  color:#cbd5f5;
+}
+
+.rank-item{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:12px 20px;
+  border-radius:10px;
+  font-size:clamp(16px,2vh,26px);
+  background:rgba(255,255,255,0.06);
+}
+
+.top1{background:#facc15;color:#111;}
+.top2{background:#ffffff;color:#111;}
+.top3{background:#d97706;color:#111;}
+
+.rank-pos{width:100px;text-align:center;}
+.rank-name{flex:1;text-align:right;}
+
+</style>
+</head>
+
+<body>
+
+<header>
+  <div id="main-title">Puntuación Final</div>
+</header>
+
+<div id="viewer"></div>
+
+<div id="overlay">
+  ⏭ Siguiente en <span id="counter">15</span>s
+</div>
+
+<script>
+
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRU5OQHyRj-OXlfqf9yxT0E8YoBnDVksnXRSZBPDCHBfs5o0Kn70vTJ7oGXY6PfxDrLDj5PaOu6Rbtb/pub?gid=258593693&single=true&output=csv";
+
+let tables = [];
+let index = 0;
+let time = 15;
+
+function colToIndex(col){
+  let index = 0;
+  for(let i=0;i<col.length;i++){
+    index = index * 26 + (col.charCodeAt(i) - 64);
+  }
+  return index - 1;
+}
+
+/* 🔥 tabla con filtro de filas vacías */
+function buildTable(rows, colStart, colEnd, rowStart, rowEnd){
+
+  const start = colToIndex(colStart);
+  const end   = colToIndex(colEnd);
+
+  const titulo = rows[0][end] || "";
+  const actualizacion = rows[19]?.[0] || "";
+
+  let body = "";
+  let hasData = false;
+
+  for(let r=rowStart-1; r<rowEnd; r++){
+
+    let rowHasData = false;
+
+    for(let c=start;c<=end;c++){
+      if(rows[r][c] && rows[r][c].toString().trim() !== ""){
+        rowHasData = true;
+        break;
+      }
+    }
+
+    if(!rowHasData) continue;
+
+    hasData = true;
+
+    let triggerCol = null;
+    if(start === colToIndex("A")) triggerCol = colToIndex("B");
+    if(start === colToIndex("F")) triggerCol = colToIndex("G");
+    if(start === colToIndex("M")) triggerCol = colToIndex("N");
+    if(start === colToIndex("T")) triggerCol = colToIndex("U");
+
+    let isAlert = false;
+    if(triggerCol !== null){
+      let val = rows[r][triggerCol];
+      if(val && val.toUpperCase().includes("NO CUADRA")) isAlert = true;
+    }
+
+    body += `<tr class="${isAlert?'alert-row':''}">`;
+
+    for(let c=start;c<=end;c++){
+
+      let style="";
+
+      if(start===colToIndex("A") && c>=colToIndex("B")) style="text-align:center;";
+      if(start===colToIndex("F") && c>=colToIndex("G")) style="text-align:center;";
+      if(start===colToIndex("M") && c>=colToIndex("N")) style="text-align:center;";
+      if(start===colToIndex("T") && c>=colToIndex("U")) style="text-align:center;";
+      if(start===colToIndex("AA")) style="text-align:center;";
+
+      body += `<td style="${style}">${rows[r][c]||""}</td>`;
+    }
+
+    body += "</tr>";
+  }
+
+  if(!hasData) return null; // 🔥 no construir tabla
+
+  return `
+    <div class="table-box">
+      <div class="table-title">${titulo}</div>
+      <div class="table-subtitle">🕒 Última actualización: ${actualizacion}</div>
+      <table>
+        <thead>
+          <tr>
+            ${rows[0].slice(start,end+1).map(h=>`<th>${h||""}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+/* ranking */
+function buildRanking(rows){
+
+  const start = colToIndex("AA");
+  const end   = colToIndex("AB");
+
+  const mensaje = rows[20]?.[0] || "DATOS PARCIALES";
+  const actualizacion = rows[19]?.[0] || "";
+
+  let html = `
+    <div class="ranking-box">
+      <div class="ranking-title">${mensaje}</div>
+      <div class="ranking-subtitle">🕒 ${actualizacion}</div>
+  `;
+
+  for(let r=1; r<7; r++){
+    let pos = rows[r][start];
+    let name = rows[r][end];
+
+    if(!pos && !name) continue;
+
+    let cls="rank-item";
+    if(pos==1) cls+=" top1";
+    if(pos==2) cls+=" top2";
+    if(pos==3) cls+=" top3";
+
+    html+=`
+      <div class="${cls}">
+        <div class="rank-pos">${pos}</div>
+        <div class="rank-name">${name}</div>
+      </div>
+    `;
+  }
+
+  html += "</div>";
+  return html;
+}
+
+/* preparar */
+function prepareTables(rows){
+
+  const temp = [
+    buildTable(rows,"A","D",2,19),
+    buildTable(rows,"F","K",2,19),
+    buildTable(rows,"M","R",2,12),
+    buildTable(rows,"T","Y",2,12),
+    buildRanking(rows)
+  ];
+
+  tables = temp.filter(t => t !== null);
+
+  showTable(0);
+}
+
+/* mostrar */
+function showTable(i){
+  const viewer=document.getElementById("viewer");
+
+  viewer.style.opacity=0;
+
+  setTimeout(()=>{
+    viewer.innerHTML=tables[i];
+    viewer.style.opacity=1;
+  },300);
+
+  time = 15;
+  document.getElementById("counter").textContent = time;
+}
+
+/* contador */
+setInterval(()=>{
+  time--;
+  document.getElementById("counter").textContent = time;
+
+  if(time<=0){
+    index=(index+1)%tables.length;
+    showTable(index);
+  }
+},1000);
+
+/* cargar */
+fetch(CSV_URL)
+.then(r=>r.text())
+.then(t=>prepareTables(parseCSV(t)));
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Resumen Final</title>
+
+<script src="core.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+  margin:0;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  color:#fff;
+  font-family:'Segoe UI', Arial;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+header{
+  text-align:center;
+  padding:1vh;
+  background:linear-gradient(90deg,#22c55e,#4ade80);
+  color:#022c22;
+}
+
+#main-title{
+  font-size:clamp(22px,3vh,60px);
+  font-weight:900;
+}
+
+#subtitle{
+  font-size:14px;
+  opacity:0.7;
+}
+
+#chart-title{
+  text-align:center;
+  font-size:22px;
+  font-weight:700;
+  margin-bottom:10px;
+}
+
+#content{
+  flex:1;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:2vh;
+}
+
+.chart-box{
+  width:100%;
+  max-width:1800px;
+  height:78vh;
+  background:rgba(255,255,255,0.05);
+  backdrop-filter:blur(12px);
+  border-radius:20px;
+  padding:2vh;
+  position:relative;
+  display:flex;
+  flex-direction:column;
+}
+
+#countdown{
+  position:absolute;
+  bottom:10px;
+  right:20px;
+  font-size:14px;
+  opacity:0.7;
+}
+
+canvas{
+  flex:1;
+}
+
+</style>
+</head>
+
+<body>
+
+<header>
+  <div id="main-title">Cargando...</div>
+  <div id="subtitle"></div>
+</header>
+
+<div id="content">
+  <div class="chart-box">
+    <div id="chart-title"></div>
+    <canvas id="chart"></canvas>
+    <div id="countdown"></div>
+  </div>
+</div>
+
+<script>
+
+const CSV_URL="https://docs.google.com/spreadsheets/d/e/2PACX-1vRU5OQHyRj-OXlfqf9yxT0E8YoBnDVksnXRSZBPDCHBfs5o0Kn70vTJ7oGXY6PfxDrLDj5PaOu6Rbtb/pub?gid=772982248&single=true&output=csv";
+
+let rowsData=[];
+let chart=null;
+let current=0;
+let seconds=10;
+
+// 🔥 ORDEN PERSONALIZADO
+const order=[5,4,1,2,3];
+
+// 🎨 colores
+const colors=[
+ ["#f87171","#ef4444","#991b1b"],
+ ["#c084fc","#a855f7","#6b21a8"],
+ ["#ffb347","#ff9900","#cc7a00"],
+ ["#60a5fa","#3b82f6","#1d4ed8"],
+ ["#4ade80","#22c55e","#15803d"]
+];
+
+// 🔢 etiquetas
+const valueLabels={
+ id:'valueLabels',
+ afterDatasetsDraw(chart){
+  const {ctx}=chart;
+  ctx.save();
+
+  const colIndex = order[current];
+  const isPercent = [1,2,3].includes(colIndex);
+
+  chart.data.datasets[0].data.forEach((v,i)=>{
+    const meta=chart.getDatasetMeta(0).data[i];
+    if(!meta) return;
+
+    ctx.fillStyle="#fff";
+    ctx.font="bold 14px Segoe UI";
+    ctx.textAlign="center";
+
+    const text = isPercent ? Math.round(v)+"%" : Math.round(v);
+
+    ctx.fillText(text, meta.x, Math.max(meta.y-8,15));
+  });
+ }
+};
+
+// 📊 escala números
+function getNiceMax(max){
+ if(max<=10) return 15;
+ if(max<=50) return Math.ceil(max/10)*10;
+ return Math.ceil(max/20)*20;
+}
+
+// 📊 escala porcentajes 🔥
+function getPercentMax(max){
+
+ if(max <= 10) return 20;
+ if(max <= 20) return 30;
+ if(max <= 40) return 50;
+ if(max <= 60) return 70;
+ if(max <= 80) return 90;
+
+ return 100;
+}
+
+// 🛡️ validación
+function isValid(rows){
+ return rows && rows.length>5 && rows[1] && rows[1][0];
+}
+
+// 🎯 construir gráfico
+function buildChart(index){
+
+ if(!rowsData.length) return;
+
+ const colIndex=order[index];
+ const isPercent = [1,2,3].includes(colIndex);
+
+ let labels=[];
+ let data=[];
+
+ for(let i=1;i<=18 && i<rowsData.length;i++){
+
+  const row=rowsData[i];
+  if(!row) continue;
+
+  const nombre=row[0];
+  const val=row[colIndex];
+
+  if(!nombre || !val) continue;
+
+  let num=parseFloat(val.replace("%",""));
+  if(isNaN(num)) continue;
+
+  labels.push(nombre);
+  data.push(num);
+ }
+
+ if(!data.length) return;
+
+ // 🟢 HEADER
+ document.getElementById("main-title").textContent=rowsData[20]?.[0] || "";
+ document.getElementById("subtitle").textContent=
+  "Última actualización: "+(rowsData[19]?.[0] || "");
+
+ // 📊 TITULO GRAFICO
+ document.getElementById("chart-title").textContent=
+  rowsData[0][colIndex] || "";
+
+ const ctx=document.getElementById("chart").getContext("2d");
+
+ const max=Math.max(...data);
+ const yMax = isPercent ? getPercentMax(max) : getNiceMax(max);
+
+ const c=colors[index];
+ const gradient=ctx.createLinearGradient(0,0,0,500);
+ gradient.addColorStop(0,c[0]);
+ gradient.addColorStop(0.5,c[1]);
+ gradient.addColorStop(1,c[2]);
+
+ if(chart) chart.destroy();
+
+ chart=new Chart(ctx,{
+  type:'bar',
+  data:{
+   labels,
+   datasets:[{
+    data,
+    backgroundColor:gradient,
+    borderColor:c[2],
+    borderWidth:1,
+    borderRadius:4
+   }]
+  },
+  options:{
+   responsive:true,
+   maintainAspectRatio:false,
+   layout:{padding:{top:30}},
+   plugins:{legend:{display:false}},
+   scales:{
+    x:{
+      ticks:{color:"#fff",maxRotation:45,minRotation:45},
+      grid:{display:false}
+    },
+    y:{
+      beginAtZero:true,
+      max:yMax,
+      ticks:{
+        color:"#fff",
+        callback:v => isPercent ? v+"%" : v
+      },
+      grid:{color:"rgba(255,255,255,0.1)"}
+    }
+   }
+  },
+  plugins:[valueLabels]
+ });
+}
+
+// 🔄 rotación
+function rotate(){
+ current=(current+1)%order.length;
+ buildChart(current);
+ seconds=10;
+}
+
+// ⏱️ contador
+setInterval(()=>{
+ seconds--;
+ document.getElementById("countdown").textContent=
+  "Siguiente gráfico en "+seconds+"s";
+
+ if(seconds<=0) rotate();
+},1000);
+
+// 🔄 carga segura
+function load(){
+
+ fetch(CSV_URL)
+  .then(r=>r.text())
+  .then(t=>{
+    const rows=parseCSV(t);
+
+    if(isValid(rows)){
+      rowsData=rows;
+      saveCache("cache_final_graf",rows);
+
+      if(!chart) buildChart(0);
+    }else{
+      throw "error";
+    }
+  })
+  .catch(()=>{
+    const cache=loadCache("cache_final_graf");
+    if(cache){
+      rowsData=cache;
+      if(!chart) buildChart(0);
+    }
+  });
+}
+
+// INIT
+load();
+setInterval(load,60000);
+
+</script>
+
+</body>
+</html>

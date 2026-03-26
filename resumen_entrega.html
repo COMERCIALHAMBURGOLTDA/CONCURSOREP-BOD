@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard Entrega</title>
+
+<script src="core.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+  margin:0;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  color:#fff;
+  font-family:'Segoe UI', Arial;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+header{
+  text-align:center;
+  padding:1vh;
+  background:linear-gradient(90deg,#22c55e,#4ade80);
+  color:#022c22;
+}
+
+#main-title{
+  font-size:clamp(24px,3vh,60px);
+  font-weight:900;
+}
+
+#content{
+  flex:1;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:2vh;
+}
+
+.chart-box{
+  width:100%;
+  max-width:1800px;
+  height:78vh;
+  background:rgba(255,255,255,0.05);
+  backdrop-filter:blur(12px);
+  border-radius:20px;
+  padding:2vh;
+  position:relative;
+}
+
+#countdown{
+  position:absolute;
+  bottom:10px;
+  right:20px;
+  font-size:14px;
+  opacity:0.7;
+}
+
+canvas{
+  width:100% !important;
+  height:100% !important;
+}
+
+</style>
+</head>
+
+<body>
+
+<header>
+  <div id="main-title">Cargando...</div>
+</header>
+
+<div id="content">
+  <div class="chart-box">
+    <canvas id="chart"></canvas>
+    <div id="countdown"></div>
+  </div>
+</div>
+
+<script>
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRU5OQHyRj-OXlfqf9yxT0E8YoBnDVksnXRSZBPDCHBfs5o0Kn70vTJ7oGXY6PfxDrLDj5PaOu6Rbtb/pub?gid=822259408&single=true&output=csv";
+
+let chart = null;
+let rowsData = [];
+let current = 0;
+let seconds = 10;
+
+// 🎨 colores por gráfico (B-F)
+const colors = [
+  ["#ffb347","#ff9900","#cc7a00"], // B
+  ["#60a5fa","#3b82f6","#1d4ed8"], // C
+  ["#4ade80","#22c55e","#15803d"], // D
+  ["#c084fc","#a855f7","#6b21a8"], // E
+  ["#f87171","#ef4444","#991b1b"]  // F
+];
+
+// 🔢 etiquetas
+const valueLabels = {
+  id:'valueLabels',
+  afterDatasetsDraw(chart){
+    const {ctx} = chart;
+    ctx.save();
+
+    chart.data.datasets[0].data.forEach((value,i)=>{
+      const meta = chart.getDatasetMeta(0).data[i];
+      if(!meta) return;
+
+      const y = Math.max(meta.y-8,15);
+
+      ctx.fillStyle="#fff";
+      ctx.font="bold 14px Segoe UI";
+      ctx.textAlign="center";
+      ctx.fillText(Math.round(value)+"%",meta.x,y);
+    });
+  }
+};
+
+// 📊 escala automática
+function getNiceMax(max){
+  if(max <= 10) return 15;
+  if(max <= 50) return Math.ceil(max/10)*10;
+  return 100;
+}
+
+// 🛡️ validar datos
+function isValid(rows){
+  return rows && rows.length > 2 && rows[1] && rows[1][0];
+}
+
+// 🎯 construir gráfico
+function buildChart(colIndex){
+
+  if(!rowsData || !rowsData.length) return;
+
+  let labels=[];
+  let data=[];
+
+  for(let i=1;i<rowsData.length;i++){
+
+    const row = rowsData[i];
+    if(!row) continue;
+
+    const nombre = row[0];
+    const rawVal = row[colIndex];
+
+    if(!nombre || !rawVal) continue;
+
+    let valor = parseFloat(rawVal.toString().replace("%",""));
+    if(isNaN(valor)) continue;
+
+    labels.push(nombre);
+    data.push(valor);
+  }
+
+  if(!data.length) return;
+
+  const titulo = rowsData[0][colIndex] || "";
+  document.getElementById("main-title").textContent = titulo;
+
+  const maxValue = Math.max(...data);
+  const yMax = getNiceMax(maxValue);
+
+  const ctx = document.getElementById("chart").getContext("2d");
+
+  const colorSet = colors[colIndex-1];
+  const gradient = ctx.createLinearGradient(0,0,0,500);
+  gradient.addColorStop(0,colorSet[0]);
+  gradient.addColorStop(0.5,colorSet[1]);
+  gradient.addColorStop(1,colorSet[2]);
+
+  if(chart) chart.destroy();
+
+  chart = new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{
+        data,
+        backgroundColor:gradient,
+        borderColor:colorSet[2],
+        borderWidth:1,
+        borderRadius:4
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      layout:{padding:{top:30}},
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{
+          ticks:{color:"#fff",maxRotation:45,minRotation:45},
+          grid:{display:false}
+        },
+        y:{
+          beginAtZero:true,
+          max:yMax,
+          ticks:{color:"#fff",callback:v=>v+"%"},
+          grid:{color:"rgba(255,255,255,0.1)"}
+        }
+      }
+    },
+    plugins:[valueLabels]
+  });
+}
+
+// 🔄 rotación
+function rotate(){
+  if(!rowsData.length) return;
+
+  current = (current + 1) % 5;
+  buildChart(current + 1);
+  seconds = 10;
+}
+
+// ⏱️ contador
+setInterval(()=>{
+  seconds--;
+  document.getElementById("countdown").textContent =
+    "Siguiente gráfico en " + seconds + "s";
+
+  if(seconds <= 0){
+    rotate();
+  }
+},1000);
+
+// 🔄 carga con cache
+function load(){
+
+  fetch(CSV_URL)
+    .then(r=>r.text())
+    .then(t=>{
+      const rows = parseCSV(t);
+
+      if(isValid(rows)){
+        rowsData = rows;
+        saveCache("cache_dashboard",rows);
+
+        if(!chart){
+          buildChart(1);
+        }
+
+      }else{
+        throw "datos vacios";
+      }
+    })
+    .catch(()=>{
+      const cache = loadCache("cache_dashboard");
+
+      if(cache){
+        rowsData = cache;
+
+        if(!chart){
+          buildChart(1);
+        }
+      }
+    });
+}
+
+// INIT
+load();
+setInterval(load,60000);
+
+</script>
+
+</body>
+</html>

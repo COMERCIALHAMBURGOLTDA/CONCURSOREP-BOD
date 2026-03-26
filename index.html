@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>TV Dashboard</title>
+
+<style>
+html, body {
+  margin:0;
+  width:100%;
+  height:100%;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  overflow:hidden;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+/* IFRAME */
+iframe {
+  width:100%;
+  height:100%;
+  border:none;
+  opacity:0;
+  transition:opacity 0.8s ease;
+}
+
+/* OVERLAY */
+#overlay {
+  position:fixed;
+  bottom:2vh;
+  left:2vw;
+  background:rgba(0,0,0,.6);
+  backdrop-filter: blur(10px);
+  color:#fff;
+  padding:1vh 1.5vw;
+  border-radius:12px;
+  font-size:1vw;
+  display:flex;
+  gap:1vw;
+  align-items:center;
+  box-shadow:0 0 20px rgba(0,0,0,0.5);
+}
+
+#overlay span {
+  color:#22c55e;
+  font-weight:bold;
+}
+
+/* HORA */
+.clock{
+  opacity:0.8;
+  font-size:0.9vw;
+}
+
+/* BARRA DE PROGRESO */
+.progress{
+  position:fixed;
+  bottom:0;
+  left:0;
+  height:4px;
+  background:#22c55e;
+  width:0%;
+  transition:width 1s linear;
+}
+</style>
+</head>
+
+<body>
+
+<div id="overlay">
+  <div class="clock" id="clock"></div>
+  ⏭ Siguiente en <span id="counter">0</span>s
+</div>
+
+<div class="progress" id="progress"></div>
+
+<iframe id="viewer"></iframe>
+
+<script>
+
+/* 🔥 CONFIGURACIÓN DE PANTALLAS */
+const screens = [
+  { url: "premios_reparto_mesanterior.html", time: 15 },
+  { url: "premios_bodega_mesanterior.html", time: 15 },
+
+  { url: "resumen_entrega.html", time: 50 },
+  { url: "resumen_operacional.html", time: 50 },
+
+  // 🆕 CUADRATURA (pantalla de control)
+  { url: "cuadratura.html", time: 35 },
+
+  { url: "resumen_final.html", time: 50 },
+  { url: "puntuacion_final.html", time: 75 }
+];
+
+let index = 0;
+let time = 0;
+let currentTime = 0;
+
+const iframe = document.getElementById("viewer");
+const counter = document.getElementById("counter");
+const clock = document.getElementById("clock");
+const progress = document.getElementById("progress");
+
+/* ⏱ Mostrar pantalla */
+function showScreen(i){
+
+  iframe.style.opacity = 0;
+
+  setTimeout(()=>{
+    iframe.src = screens[i].url;
+
+    iframe.onload = ()=>{
+      iframe.style.opacity = 1;
+    };
+
+  },400);
+
+  currentTime = screens[i].time;
+  time = currentTime;
+
+  counter.textContent = time;
+  progress.style.width = "0%";
+}
+
+/* ⏳ Timer */
+setInterval(()=>{
+
+  time--;
+  counter.textContent = time;
+
+  /* barra progreso */
+  progress.style.width = ((currentTime - time) / currentTime * 100) + "%";
+
+  if(time <= 0){
+    index = (index + 1) % screens.length;
+    showScreen(index);
+  }
+
+},1000);
+
+/* 🕒 Reloj */
+setInterval(()=>{
+  const now = new Date();
+  clock.textContent = now.toLocaleTimeString();
+},1000);
+
+/* INIT */
+showScreen(0);
+
+</script>
+
+</body>
+</html>

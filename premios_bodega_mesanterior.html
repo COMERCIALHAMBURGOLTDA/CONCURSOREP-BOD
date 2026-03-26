@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Premios Bodega</title>
+
+<script src="core.js"></script>
+
+<style>
+
+/* 🌍 BASE GLOBAL */
+body{
+  margin:0;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  color:#fff;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+/* HEADER */
+header{
+  text-align:center;
+  padding:1.2vh;
+  background:linear-gradient(90deg,#22c55e,#4ade80);
+  color:#022c22;
+  box-shadow:0 0 30px rgba(34,197,94,0.4);
+  display:flex;
+  flex-direction:column;
+}
+
+#main-title{
+  font-size:clamp(26px, 3.5vh, 70px);
+  font-weight:900;
+}
+
+#sub-title{
+  font-size:clamp(16px, 1.8vh, 32px);
+  opacity:0.85;
+}
+
+/* CONTENIDO */
+#content{
+  flex:1;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:2vh 2vw;
+}
+
+/* CONTENEDOR */
+.container{
+  width:100%;
+  max-width:1800px;
+  display:flex;
+  flex-direction:column;
+  gap:3vh; /* 🔥 más separación */
+}
+
+/* FILAS */
+.top1, .row{
+  display:grid;
+  grid-template-columns: 100px 1fr 220px;
+  align-items:center;
+
+  padding:1.6vh 2.5vw;
+  border-radius:18px;
+  font-weight:900;
+
+  min-height:120px; /* 🔥 más altura */
+}
+
+/* TOP 1 */
+.top1{
+  font-size:clamp(28px, 3.8vh, 70px);
+  background:linear-gradient(90deg,gold,#fff3b0);
+  color:#000;
+  box-shadow:0 0 35px rgba(255,215,0,0.6);
+}
+
+/* FILAS */
+.row{
+  font-size:clamp(22px, 2.8vh, 48px);
+  background:rgba(255,255,255,0.08);
+}
+
+/* ICONO */
+.medal{
+  font-size:clamp(26px, 3.2vh, 60px);
+  text-align:center;
+}
+
+/* COLORES */
+.silver{
+  background:linear-gradient(90deg,#e5e7eb,#f3f4f6);
+  color:#000;
+}
+
+.bronze{
+  background:linear-gradient(90deg,#ffd8a8,#ffe8cc);
+  color:#000;
+}
+
+.place{
+  text-align:right;
+}
+
+/* TEXTO */
+.row div, .top1 div{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* ANIMACIÓN */
+.fade{
+  animation:fadeUp .5s ease;
+}
+
+@keyframes fadeUp{
+  from{ opacity:0; transform:translateY(25px); }
+  to{ opacity:1; transform:translateY(0); }
+}
+
+.loading{
+  margin:auto;
+  font-size:clamp(20px,2vw,42px);
+}
+
+</style>
+</head>
+
+<body>
+
+<header>
+  <div id="main-title">Cargando...</div>
+  <div id="sub-title"></div>
+</header>
+
+<div id="content">
+  <div class="loading">Cargando datos...</div>
+</div>
+
+<script>
+const CSV_URL =
+"https://docs.google.com/spreadsheets/d/e/2PACX-1vRU5OQHyRj-OXlfqf9yxT0E8YoBnDVksnXRSZBPDCHBfs5o0Kn70vTJ7oGXY6PfxDrLDj5PaOu6Rbtb/pub?gid=960079246&single=true&output=csv";
+
+function render(rows){
+
+  // HEADER
+  const titulo = rows[4]?.[0] || "SIN TÍTULO";
+  const fecha  = rows[5]?.[0] || "";
+
+  document.getElementById("main-title").textContent = titulo;
+  document.getElementById("sub-title").textContent = "Última actualización: " + fecha;
+
+  let html = `<div class="container">`;
+
+  for(let i = 1; i <= 3 && i < rows.length; i++){
+
+    const nombre = rows[i][0];
+    const lugar  = Number(rows[i][1]);
+
+    let medal = "";
+    let cls = "";
+    let label = lugar + " LUGAR";
+
+    if(lugar === 1){
+      medal = "🥇";
+
+      html += `
+        <div class="top1 fade">
+          <div class="medal">${medal}</div>
+          <div>${nombre}</div>
+          <div class="place">${label}</div>
+        </div>
+      `;
+      continue;
+    }
+
+    if(lugar === 2){
+      medal = "🥈";
+      cls = "silver";
+    }
+    else if(lugar === 3){
+      medal = "🥉";
+      cls = "bronze";
+    }
+
+    html += `
+      <div class="row ${cls} fade">
+        <div class="medal">${medal}</div>
+        <div>${nombre}</div>
+        <div class="place">${label}</div>
+      </div>
+    `;
+  }
+
+  html += "</div>";
+
+  document.getElementById("content").innerHTML = html;
+}
+
+fetchSafe(CSV_URL, "cache_bodega", render);
+</script>
+
+</body>
+</html>
