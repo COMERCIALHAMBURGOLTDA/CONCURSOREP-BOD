@@ -32,6 +32,12 @@ header{
   font-weight:900;
 }
 
+#sub-title{
+  font-size:clamp(12px,1.5vh,20px);
+  opacity:0.75;
+}
+
+/* CONTENIDO */
 #content{
   flex:1;
   display:flex;
@@ -71,6 +77,7 @@ canvas{
 
 <header>
   <div id="main-title">Cargando...</div>
+  <div id="sub-title"></div>
 </header>
 
 <div id="content">
@@ -81,6 +88,7 @@ canvas{
 </div>
 
 <script>
+
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRU5OQHyRj-OXlfqf9yxT0E8YoBnDVksnXRSZBPDCHBfs5o0Kn70vTJ7oGXY6PfxDrLDj5PaOu6Rbtb/pub?gid=822259408&single=true&output=csv";
 
 let chart = null;
@@ -88,13 +96,13 @@ let rowsData = [];
 let current = 0;
 let seconds = 10;
 
-// 🎨 colores por gráfico (B-F)
+// 🎨 colores
 const colors = [
-  ["#ffb347","#ff9900","#cc7a00"], // B
-  ["#60a5fa","#3b82f6","#1d4ed8"], // C
-  ["#4ade80","#22c55e","#15803d"], // D
-  ["#c084fc","#a855f7","#6b21a8"], // E
-  ["#f87171","#ef4444","#991b1b"]  // F
+  ["#ffb347","#ff9900","#cc7a00"],
+  ["#60a5fa","#3b82f6","#1d4ed8"],
+  ["#4ade80","#22c55e","#15803d"],
+  ["#c084fc","#a855f7","#6b21a8"],
+  ["#f87171","#ef4444","#991b1b"]
 ];
 
 // 🔢 etiquetas
@@ -118,14 +126,14 @@ const valueLabels = {
   }
 };
 
-// 📊 escala automática
+// 📊 escala
 function getNiceMax(max){
   if(max <= 10) return 15;
   if(max <= 50) return Math.ceil(max/10)*10;
   return 100;
 }
 
-// 🛡️ validar datos
+// 🛡️ validar
 function isValid(rows){
   return rows && rows.length > 2 && rows[1] && rows[1][0];
 }
@@ -157,8 +165,14 @@ function buildChart(colIndex){
 
   if(!data.length) return;
 
+  // 🟢 TITULO
   const titulo = rowsData[0][colIndex] || "";
   document.getElementById("main-title").textContent = titulo;
+
+  // 🕒 ACTUALIZACIÓN (A20)
+  const actualizacion = rowsData[19]?.[0] || "";
+  document.getElementById("sub-title").textContent =
+    "Última actualización: " + actualizacion;
 
   const maxValue = Math.max(...data);
   const yMax = getNiceMax(maxValue);
@@ -210,7 +224,6 @@ function buildChart(colIndex){
 // 🔄 rotación
 function rotate(){
   if(!rowsData.length) return;
-
   current = (current + 1) % 5;
   buildChart(current + 1);
   seconds = 10;
@@ -227,7 +240,7 @@ setInterval(()=>{
   }
 },1000);
 
-// 🔄 carga con cache
+// 🔄 carga
 function load(){
 
   fetch(CSV_URL)
