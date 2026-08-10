@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Resultados Concurso</title>
+
+<script src="core.js"></script>
+
+<style>
+
+@keyframes fadeUp{
+  from{ opacity:0; transform:translateY(30px); }
+  to{ opacity:1; transform:translateY(0); }
+}
+
+@keyframes glow{
+  0%,100%{ text-shadow:0 0 40px rgba(250,204,21,0.35), 0 0 90px rgba(34,197,94,0.15); }
+  50%{ text-shadow:0 0 60px rgba(250,204,21,0.55), 0 0 120px rgba(34,197,94,0.25); }
+}
+
+@keyframes sweep{
+  0%{ transform:translateX(-120%) skewX(-20deg); }
+  100%{ transform:translateX(220%) skewX(-20deg); }
+}
+
+*{ box-sizing:border-box; }
+
+html, body{
+  margin:0;
+  height:100vh;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(34,197,94,0.16), transparent 45%),
+    radial-gradient(circle at 85% 85%, rgba(250,204,21,0.10), transparent 50%),
+    radial-gradient(circle at top, #0f172a, #020617);
+  font-family:'Segoe UI', Arial, sans-serif;
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+}
+
+/* Línea de acento superior, como un "listón de premiación" */
+.ribbon{
+  position:fixed;
+  top:0; left:0; right:0;
+  height:6px;
+  background:linear-gradient(90deg,#facc15,#22c55e,#facc15);
+  background-size:200% 100%;
+  animation:sweep-bg 6s linear infinite;
+}
+
+@keyframes sweep-bg{
+  0%{ background-position:0% 0; }
+  100%{ background-position:200% 0; }
+}
+
+.stage{
+  text-align:center;
+  padding:4vh 6vw;
+  position:relative;
+}
+
+.eyebrow{
+  display:inline-flex;
+  align-items:center;
+  gap:0.8vw;
+  font-size:clamp(14px, 1.6vh, 24px);
+  letter-spacing:0.35em;
+  text-transform:uppercase;
+  color:#4ade80;
+  font-weight:700;
+  opacity:0;
+  animation:fadeUp .7s ease forwards;
+}
+
+.eyebrow::before, .eyebrow::after{
+  content:"";
+  width:2.5vw;
+  height:2px;
+  background:linear-gradient(90deg,transparent,#22c55e);
+}
+.eyebrow::after{
+  background:linear-gradient(90deg,#22c55e,transparent);
+}
+
+h1{
+  margin:2vh 0 1vh;
+  font-size:clamp(32px, 6.5vh, 130px);
+  font-weight:900;
+  line-height:1.02;
+  background:linear-gradient(180deg,#ffffff 30%, #cbd5f5 100%);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  opacity:0;
+  animation:fadeUp .8s ease .15s forwards;
+}
+
+/* 🏆 EL MES: pieza central, la más grande de la pantalla */
+.month-wrap{
+  position:relative;
+  display:inline-block;
+  margin:1vh 0 3vh;
+  opacity:0;
+  animation:fadeUp .9s ease .32s forwards;
+}
+
+.month{
+  font-size:clamp(56px, 14vh, 260px);
+  font-weight:900;
+  letter-spacing:0.02em;
+  text-transform:uppercase;
+  background:linear-gradient(180deg,#fde68a 0%, #facc15 45%, #ca8a04 100%);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  animation:glow 3.5s ease-in-out infinite;
+  position:relative;
+}
+
+/* brillo que recorre el texto del mes */
+.month-wrap::after{
+  content:"";
+  position:absolute;
+  top:0; left:0;
+  width:35%;
+  height:100%;
+  background:linear-gradient(100deg, transparent, rgba(255,255,255,0.55), transparent);
+  animation:sweep 3.5s ease-in-out infinite;
+  animation-delay:1.2s;
+  mix-blend-mode:overlay;
+  pointer-events:none;
+}
+
+.divider{
+  width:min(60vw, 420px);
+  height:2px;
+  margin:0 auto 3vh;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.35),transparent);
+  opacity:0;
+  animation:fadeUp .8s ease .5s forwards;
+}
+
+.sub{
+  font-size:clamp(16px, 2vh, 30px);
+  color:#cbd5f5;
+  opacity:0;
+  animation:fadeUp .8s ease .62s forwards;
+}
+
+.sub strong{
+  color:#4ade80;
+  font-weight:800;
+}
+
+.loading{
+  font-size:clamp(18px,2vw,32px);
+  color:#94a3b8;
+}
+
+#cache-warning{
+  position:fixed;
+  bottom:2vh;
+  left:2vw;
+  font-size:clamp(11px,1.1vh,15px);
+  color:#fbbf24;
+  opacity:0.9;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="ribbon"></div>
+
+<div class="stage" id="stage">
+  <div class="loading">Cargando resultados...</div>
+</div>
+
+<div id="cache-warning"></div>
+
+<script>
+
+// La misma hoja de cálculo del resto del dashboard, pestaña de portada.
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRU5OQHyRj-OXlfqf9yxT0E8YoBnDVksnXRSZBPDCHBfs5o0Kn70vTJ7oGXY6PfxDrLDj5PaOu6Rbtb/pub?gid=1402894914&single=true&output=csv";
+
+function render(rows){
+
+  const colB = colToIndex("B");
+  const mes = rows[0]?.[colB] || "—";
+
+  document.getElementById("stage").innerHTML = `
+    <div class="eyebrow">Cierre de mes</div>
+    <h1>Resultados Concurso</h1>
+    <div class="month-wrap"><div class="month">${mes}</div></div>
+    <div class="divider"></div>
+    <div class="sub">Ranking y premiación del mes de <strong>${mes}</strong></div>
+  `;
+}
+
+function onStatus(status){
+  const el = document.getElementById("cache-warning");
+  if(el){
+    if(status === "cache"){
+      el.textContent = "⚠ Mostrando datos de cache (" + cacheAgeLabel("cache_portada_concurso") + ")";
+    } else if(status === "empty"){
+      el.textContent = "⚠ Sin datos disponibles";
+    } else if(status === "retrying"){
+      el.textContent = "⏳ Reintentando obtener datos...";
+    } else {
+      el.textContent = "";
+    }
+  }
+  // Solo avisamos "pantalla lista" en un estado final (se consiguieron
+  // datos, se cayó a cache, o se agotó el intento). "retrying" es un
+  // estado intermedio: todavía estamos esperando datos válidos.
+  if(status !== "retrying"){
+    notifyReady();
+  }
+}
+
+fetchUntilValid(CSV_URL, "cache_portada_concurso", render, onStatus);
+
+</script>
+
+</body>
+</html>

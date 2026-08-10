@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>TV Dashboard</title>
+
+<style>
+html, body {
+  margin:0;
+  width:100%;
+  height:100%;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  overflow:hidden;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+/* IFRAME */
+iframe {
+  width:100%;
+  height:100%;
+  border:none;
+  opacity:0;
+  transition:opacity 0.8s ease;
+}
+
+/* pool de iframes precargados: todos existen desde el inicio, pero
+   solo el "activo" es visible; el resto queda apilado detrás,
+   invisible, ya totalmente cargado y listo para mostrarse al instante */
+#pool{
+  position:absolute;
+  inset:0;
+}
+
+#pool iframe{
+  position:absolute;
+  inset:0;
+  opacity:0;
+  pointer-events:none;
+}
+
+#pool iframe.active{
+  opacity:1;
+  pointer-events:auto;
+}
+
+/* OVERLAY */
+#overlay {
+  position:fixed;
+  bottom:2vh;
+  left:2vw;
+  background:rgba(0,0,0,.6);
+  backdrop-filter: blur(10px);
+  color:#fff;
+  padding:1vh 1.5vw;
+  border-radius:12px;
+  font-size:1vw;
+  display:flex;
+  gap:1vw;
+  align-items:center;
+  box-shadow:0 0 20px rgba(0,0,0,0.5);
+}
+
+#overlay span {
+  color:#22c55e;
+  font-weight:bold;
+}
+
+/* HORA */
+.clock{
+  opacity:0.8;
+  font-size:0.9vw;
+}
+
+/* BARRA DE PROGRESO */
+.progress{
+  position:fixed;
+  bottom:0;
+  left:0;
+  height:4px;
+  background:#22c55e;
+  width:0%;
+  transition:width 1s linear;
+}
+
+/* ---------- pantalla de preparación inicial ---------- */
+#prep-screen{
+  position:fixed;
+  inset:0;
+  z-index:50;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  color:#fff;
+  text-align:center;
+  padding:4vh 6vw;
+}
+
+#prep-screen .prep-icon{
+  width:56px;
+  height:56px;
+  border:3px solid rgba(34,197,94,0.25);
+  border-top-color:#22c55e;
+  border-radius:50%;
+  animation:prep-spin 1s linear infinite;
+  margin-bottom:3vh;
+}
+
+@keyframes prep-spin{
+  to{ transform:rotate(360deg); }
+}
+
+#prep-screen h1{
+  font-size:clamp(24px,3.6vh,50px);
+  font-weight:900;
+  margin:0 0 1.2vh;
+}
+
+#prep-screen .prep-sub{
+  font-size:clamp(13px,1.6vh,20px);
+  opacity:0.75;
+  margin-bottom:3vh;
+}
+
+#prep-screen .prep-track{
+  width:min(50vw, 460px);
+  height:8px;
+  border-radius:4px;
+  background:rgba(255,255,255,0.08);
+  overflow:hidden;
+}
+
+#prep-screen .prep-fill{
+  height:100%;
+  width:0%;
+  background:linear-gradient(90deg,#22c55e,#4ade80);
+  transition:width .3s ease;
+}
+
+#prep-screen .prep-count{
+  margin-top:1.2vh;
+  font-size:clamp(12px,1.3vh,16px);
+  opacity:0.6;
+}
+
+#prep-screen.hide{
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .6s ease;
+}
+</style>
+</head>
+
+<body>
+
+<div id="prep-screen">
+  <div class="prep-icon"></div>
+  <h1>Preparando panel</h1>
+  <div class="prep-sub">Armando gráficos y tablas con los datos más recientes</div>
+  <div class="prep-track"><div class="prep-fill" id="prepFill"></div></div>
+  <div class="prep-count" id="prepCount">0 / 0 pantallas listas</div>
+</div>
+
+<div id="overlay">
+  <div class="clock" id="clock"></div>
+  ⏭ Siguiente en <span id="counter">0</span>s
+</div>
+
+<div class="progress" id="progress"></div>
+
+<div id="pool"></div>
+
+<script>
+
+/* 🔥 CONFIGURACIÓN DE PANTALLAS */
+const screens = [
+  { url: "portada_concurso.html", time: 10 },
+  { url: "premios_reparto_mesanterior.html", time: 15 },
+  { url: "premios_bodega_mesanterior.html", time: 15 },
+
+  { url: "portada_estadisticas.html", time: 10 },
+  { url: "resumen_entrega.html", time: 50 },
+  { url: "resumen_operacional.html", time: 50 },
+
+  // 🆕 CUADRATURA (pantalla de control)
+  { url: "cuadratura.html", time: 35 },
+
+  { url: "resumen_final.html", time: 50 },
+  { url: "puntuacion_final.html", time: 75 }
+];
+
+let index = 0;
+let time = 0;
+let currentTime = 0;
+let cycleStarted = false;
+
+const counter = document.getElementById("counter");
+const clock = document.getElementById("clock");
+const progress = document.getElementById("progress");
+const pool = document.getElementById("pool");
+const prepScreen = document.getElementById("prep-screen");
+const prepFill = document.getElementById("prepFill");
+const prepCount = document.getElementById("prepCount");
+
+/* 🏗️ Crear el pool de iframes: uno por pantalla, todos cargando desde
+   ya en paralelo. Cada uno queda "detrás" (opacity:0, sin recibir
+   clicks) hasta que le toque ser el activo. Como todos arrancan su
+   carga al mismo tiempo, para cuando termine la pre-carga inicial ya
+   están completamente armados (datos + gráfico/tabla renderizados). */
+const frames = screens.map((screen, i) => {
+  const f = document.createElement("iframe");
+  f.src = screen.url;
+  pool.appendChild(f);
+  return f;
+});
+
+/* 📡 Escuchar el aviso "screenReady" que cada pantalla manda con
+   notifyReady() (definida en core.js) apenas termina de construirse. */
+let readyCount = 0;
+const readyFlags = new Array(screens.length).fill(false);
+
+window.addEventListener("message", (event) => {
+  if(!event.data || event.data.type !== "screenReady") return;
+
+  const i = frames.findIndex(f => f.contentWindow === event.source);
+  if(i === -1 || readyFlags[i]) return; // ya contado, o no es de nuestro pool
+
+  readyFlags[i] = true;
+  readyCount++;
+
+  prepFill.style.width = (readyCount / screens.length * 100) + "%";
+  prepCount.textContent = readyCount + " / " + screens.length + " pantallas listas";
+
+  if(readyCount === screens.length){
+    startCycle();
+  }
+});
+
+/* 🛡️ Red de seguridad: si alguna pantalla puntual nunca avisa (por
+   ejemplo su hoja de cálculo no tiene datos y quedó en un estado no
+   contemplado), no dejamos la TV trabada para siempre en "Preparando
+   panel". Tras un tiempo razonable, arrancamos igual con lo que haya. */
+setTimeout(()=>{
+  if(!cycleStarted) startCycle();
+}, 25000);
+
+/* 🚀 Arranca el ciclo visible: todos los iframes ya están cargados en
+   el pool, así que solo hay que mostrar el primero (transición
+   instantánea, sin esperar ningún onload) y encender el temporizador. */
+function startCycle(){
+  if(cycleStarted) return;
+  cycleStarted = true;
+
+  prepScreen.classList.add("hide");
+  activateFrame(0);
+}
+
+/* 🔁 Cambiar cuál iframe del pool es el visible. Como ya están todos
+   cargados de antemano, esto es instantáneo — no hay parpadeo ni
+   espera, ni siquiera en la primera vuelta del ciclo. */
+function activateFrame(i){
+  frames.forEach((f, fi) => f.classList.toggle("active", fi === i));
+
+  currentTime = screens[i].time;
+  time = currentTime;
+
+  counter.textContent = time;
+  progress.style.width = "0%";
+}
+
+/* ⏳ Timer */
+setInterval(()=>{
+
+  if(!cycleStarted) return;
+
+  time--;
+  counter.textContent = time;
+
+  /* barra progreso */
+  progress.style.width = ((currentTime - time) / currentTime * 100) + "%";
+
+  if(time <= 0){
+    index = (index + 1) % screens.length;
+    activateFrame(index);
+  }
+
+},1000);
+
+/* 🕒 Reloj */
+setInterval(()=>{
+  const now = new Date();
+  clock.textContent = now.toLocaleTimeString();
+},1000);
+
+</script>
+
+</body>
+</html>

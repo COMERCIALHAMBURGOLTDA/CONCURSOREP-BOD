@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Revisión Diaria</title>
+
+<script src="core.js"></script>
+
+<style>
+
+@keyframes fadeUp{
+  from{ opacity:0; transform:translateY(30px); }
+  to{ opacity:1; transform:translateY(0); }
+}
+
+@keyframes scanline{
+  0%{ transform:translateY(-100%); }
+  100%{ transform:translateY(100%); }
+}
+
+@keyframes pulseDot{
+  0%,100%{ opacity:1; box-shadow:0 0 0 0 rgba(34,197,94,0.6); }
+  50%{ opacity:0.6; box-shadow:0 0 0 10px rgba(34,197,94,0); }
+}
+
+@keyframes gridDrift{
+  0%{ background-position:0 0; }
+  100%{ background-position:60px 60px; }
+}
+
+*{ box-sizing:border-box; }
+
+html, body{
+  margin:0;
+  height:100vh;
+  overflow:hidden;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  font-family:'Segoe UI', Arial, sans-serif;
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+}
+
+/* Grilla técnica de fondo: evoca panel de control / checklist operativo */
+.grid-bg{
+  position:fixed;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(34,197,94,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34,197,94,0.06) 1px, transparent 1px);
+  background-size:60px 60px;
+  animation:gridDrift 8s linear infinite;
+  mask-image:radial-gradient(circle at center, black 30%, transparent 75%);
+}
+
+/* Línea de "escaneo" vertical, como un sensor pasando */
+.scan{
+  position:fixed;
+  inset:0;
+  overflow:hidden;
+  pointer-events:none;
+}
+.scan::after{
+  content:"";
+  position:absolute;
+  left:0; right:0;
+  height:35%;
+  background:linear-gradient(180deg, transparent, rgba(34,197,94,0.10), transparent);
+  animation:scanline 5s ease-in-out infinite;
+}
+
+.panel{
+  position:relative;
+  z-index:2;
+  text-align:center;
+  padding:4vh 6vw;
+  border:1px solid rgba(74,222,128,0.25);
+  border-radius:24px;
+  background:rgba(15,23,42,0.55);
+  backdrop-filter:blur(14px);
+  box-shadow:0 0 60px rgba(34,197,94,0.12), inset 0 0 60px rgba(34,197,94,0.04);
+}
+
+.status{
+  display:inline-flex;
+  align-items:center;
+  gap:0.7vw;
+  font-size:clamp(13px, 1.5vh, 22px);
+  letter-spacing:0.3em;
+  text-transform:uppercase;
+  color:#4ade80;
+  font-weight:700;
+  opacity:0;
+  animation:fadeUp .7s ease forwards;
+}
+
+.dot{
+  width:0.9vh;
+  height:0.9vh;
+  min-width:8px;
+  min-height:8px;
+  border-radius:50%;
+  background:#22c55e;
+  animation:pulseDot 1.6s ease-in-out infinite;
+}
+
+h1{
+  margin:2vh 0 0.5vh;
+  font-size:clamp(28px, 5.4vh, 100px);
+  font-weight:900;
+  line-height:1.05;
+  color:#fff;
+  opacity:0;
+  animation:fadeUp .8s ease .15s forwards;
+}
+
+h1 span{
+  display:block;
+  background:linear-gradient(90deg,#4ade80,#22c55e);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+
+/* 📅 EL MES: tarjeta tipo "sello de control" */
+.month-card{
+  display:inline-flex;
+  align-items:baseline;
+  gap:1vw;
+  margin:3vh 0 3vh;
+  padding:1.6vh 3.2vw;
+  border-radius:16px;
+  background:linear-gradient(90deg,#22c55e,#4ade80);
+  color:#022c22;
+  box-shadow:0 0 45px rgba(34,197,94,0.45);
+  opacity:0;
+  animation:fadeUp .9s ease .32s forwards;
+}
+
+.month-card .label{
+  font-size:clamp(12px, 1.3vh, 18px);
+  font-weight:700;
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  opacity:0.75;
+}
+
+.month-card .value{
+  font-size:clamp(32px, 5.2vh, 90px);
+  font-weight:900;
+  text-transform:uppercase;
+}
+
+.sub{
+  font-size:clamp(15px, 1.9vh, 28px);
+  color:#94a3b8;
+  opacity:0;
+  animation:fadeUp .8s ease .5s forwards;
+}
+
+.sub strong{
+  color:#e2e8f0;
+  font-weight:700;
+}
+
+.loading{
+  font-size:clamp(18px,2vw,32px);
+  color:#94a3b8;
+  position:relative;
+  z-index:2;
+}
+
+#cache-warning{
+  position:fixed;
+  bottom:2vh;
+  left:2vw;
+  font-size:clamp(11px,1.1vh,15px);
+  color:#fbbf24;
+  opacity:0.9;
+  z-index:3;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="grid-bg"></div>
+<div class="scan"></div>
+
+<div id="stage-wrap">
+  <div class="loading">Cargando estadísticas...</div>
+</div>
+
+<div id="cache-warning"></div>
+
+<script>
+
+// La misma hoja de cálculo del resto del dashboard, pestaña de portada.
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRU5OQHyRj-OXlfqf9yxT0E8YoBnDVksnXRSZBPDCHBfs5o0Kn70vTJ7oGXY6PfxDrLDj5PaOu6Rbtb/pub?gid=1402894914&single=true&output=csv";
+
+function render(rows){
+
+  const colB = colToIndex("B");
+  const mes = rows[1]?.[colB] || "—";
+
+  document.getElementById("stage-wrap").innerHTML = `
+    <div class="panel">
+      <div class="status"><span class="dot"></span>Estadísticas en curso</div>
+      <h1>Revisión Diaria<span>Choferes</span></h1>
+      <div class="month-card">
+        <span class="label">Mes evaluado</span>
+        <span class="value">${mes}</span>
+      </div>
+      <div class="sub">Seguimiento operativo de <strong>${mes}</strong> actualizado en vivo</div>
+    </div>
+  `;
+}
+
+function onStatus(status){
+  const el = document.getElementById("cache-warning");
+  if(el){
+    if(status === "cache"){
+      el.textContent = "⚠ Mostrando datos de cache (" + cacheAgeLabel("cache_portada_estadisticas") + ")";
+    } else if(status === "empty"){
+      el.textContent = "⚠ Sin datos disponibles";
+    } else if(status === "retrying"){
+      el.textContent = "⏳ Reintentando obtener datos...";
+    } else {
+      el.textContent = "";
+    }
+  }
+  if(status !== "retrying"){
+    notifyReady();
+  }
+}
+
+fetchUntilValid(CSV_URL, "cache_portada_estadisticas", render, onStatus);
+
+</script>
+
+</body>
+</html>
