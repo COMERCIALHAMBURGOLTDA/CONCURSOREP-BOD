@@ -203,7 +203,7 @@ function onStatus(status){
   const el = document.getElementById("cache-warning");
   if(el){
     if(status === "cache"){
-      el.textContent = "⚠ Mostrando datos de cache (" + cacheAgeLabel("cache_portada_concurso") + ")";
+      el.textContent = "";
     } else if(status === "empty"){
       el.textContent = "⚠ Sin datos disponibles";
     } else if(status === "retrying"){

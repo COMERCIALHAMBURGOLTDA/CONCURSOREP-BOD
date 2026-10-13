@@ -231,6 +231,7 @@ function render(rows){
 // hay un resultado final.
 function onStatus(status){
   if(status === "retrying"){
+    if(window.parent.dashboardData && window.parent.dashboardData.hasData(CSV_URL)) return;
     document.getElementById("content").innerHTML =
       '<div class="loading">⏳ Reintentando obtener datos...</div>';
     return;

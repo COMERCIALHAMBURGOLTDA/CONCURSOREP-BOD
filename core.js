@@ -31,10 +31,16 @@ function parseCSV(text){
   return rows;
 }
 
-// ================= VALIDACIÓN =================
+// ================= VALIDACIÓN DE CSV (IMPORTRANGE) =================
+// Rechazar errores temporales, hojas con solo títulos y valores de carga.
+function usableCell(value){
+  const s=String(value ?? "").trim();
+  return s !== "" && !/^(#(N\/A|REF!|ERROR!|VALUE!|DIV\/0!|NAME\?|NUM!|SPILL!|CALC!)|cargando(?:\.\.\.)?|loading(?:\.\.\.)?)$/i.test(s);
+}
 function isValidData(rows){
-  if (!rows || rows.length < 2) return false;
-  return rows.some(r => r.some(c => c && c !== "#N/A"));
+  if(!Array.isArray(rows) || rows.length<2) return false;
+  const meaningful=rows.slice(1).filter(r=>Array.isArray(r) && r.filter(usableCell).length>=2);
+  return meaningful.length>=1;
 }
 
 // ================= CACHE =================
@@ -118,10 +124,20 @@ function renderMesSubtitle(elId, prefix){
 //   "empty"   -> se agotó el tiempo y tampoco hay cache
 //   "retrying"-> se llama en cada intento fallido, antes de reintentar (opcional, informativo)
 function fetchUntilValid(url, cacheKey, render, onStatus, opts){
+  // En el dashboard integrado, index.html es el ÚNICO que consulta Sheets.
+  // El coordinador entrega datos validados o la última copia buena.
+  if(window.parent !== window && window.parent.dashboardData){
+    return window.parent.dashboardData.subscribe(url, cacheKey, render, onStatus);
+  }
   opts = opts || {};
   const retryDelayMs = opts.retryDelayMs || 8000;   // 8s entre reintentos
   const maxWaitMs = opts.maxWaitMs || 3 * 60 * 1000; // hasta 3 min reintentando
   const startedAt = Date.now();
+  const existing = loadCache(cacheKey);
+  if(existing && isValidData(existing)){
+    render(existing);
+    if(onStatus) onStatus("cache");
+  }
 
   function attempt(){
     if(!url){
@@ -129,8 +145,8 @@ function fetchUntilValid(url, cacheKey, render, onStatus, opts){
       return;
     }
 
-    fetch(url)
-      .then(r => r.text())
+    fetch(url, {cache:"no-store"})
+      .then(r => {if(!r.ok) throw new Error("HTTP "+r.status); return r.text();})
       .then(t => {
         const rows = parseCSV(t);
 

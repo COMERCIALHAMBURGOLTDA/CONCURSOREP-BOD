@@ -192,7 +192,7 @@ function onStatus(status){
   const el = document.getElementById("cache-warning");
   if(el){
     if(status === "cache"){
-      el.textContent = "⚠ Mostrando datos de cache (" + cacheAgeLabel("cache_final_graf") + ")";
+      el.textContent = "";
     } else if(status === "empty"){
       el.textContent = "⚠ Sin datos disponibles";
     } else if(status === "retrying"){
@@ -305,6 +305,7 @@ function rotate(){
 
 // ⏱️ contador
 setInterval(()=>{
+ if (!window.__slideActive) return;
  seconds--;
  document.getElementById("countdown").textContent=
   "Siguiente gráfico en "+seconds+"s";
@@ -322,11 +323,31 @@ function load(){
 
 // INIT
 load();
-setInterval(load,60000);
+// La actualización de datos se coordina desde index.html cada 10 minutos.
 
 // 📅 Subtítulo: mes actual (misma celda que usa portada_estadisticas.html)
 renderMesSubtitle("mes-actual", "Datos del mes de");
 
+
+window.__slideActive = false;
+window.subslideCount = () => 5;
+window.subslidePosition = () => current;
+window.stepSubslide = (direction) => {
+  const target = current + direction;
+  if(target < 0 || target >= 5 || !rowsData.length) return false;
+  current = target;
+  buildChart(current);
+  seconds = 10;
+  return true;
+};
+window.resetSubslide = (last = false) => {
+  current = last ? 4 : 0;
+  seconds = 10;
+  if(rowsData.length) buildChart(current);
+};
+window.addEventListener('message', event => {
+  if(event.source === window.parent && event.data?.type === 'presentation-visibility') window.__slideActive = !!event.data.active;
+});
 </script>
 
 </body>

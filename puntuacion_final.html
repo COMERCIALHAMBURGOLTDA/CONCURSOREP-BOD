@@ -345,12 +345,15 @@ function showTable(i){
     viewer.style.opacity=1;
   },300);
 
-  time = 15;
+  // Solo la ultima subdiapositiva (ranking "PUNTUACION PARCIAL MES") dura 2 minutos.
+  // Las cuatro tablas anteriores conservan sus 15 segundos.
+  time = (i === tables.length - 1 && tables[i]?.includes("ranking-box")) ? 120 : 15;
   document.getElementById("counter").textContent = time;
 }
 
 /* contador */
 setInterval(()=>{
+  if (!window.__slideActive || !tables.length) return;
   time--;
   document.getElementById("counter").textContent = time;
 
@@ -365,7 +368,7 @@ function onStatus(status){
   const el = document.getElementById("overlay");
   if(el){
     if(status === "cache"){
-      el.innerHTML = `⚠ Datos de cache (${cacheAgeLabel("cache_puntuacion_final")}) · Siguiente en <span id="counter">${time}</span>s`;
+      el.innerHTML = `⏭ Siguiente en <span id="counter">${time}</span>s`;
     } else if(status === "empty"){
       el.innerHTML = `⚠ Sin datos disponibles`;
     } else if(status === "retrying"){
@@ -388,13 +391,28 @@ function onStatus(status){
 fetchUntilValid(CSV_URL, "cache_puntuacion_final", prepareTables, onStatus);
 
 /* recarga periódica igual que el resto de pantallas */
-setInterval(()=>{
-  fetchUntilValid(CSV_URL, "cache_puntuacion_final", prepareTables, onStatus);
-}, 60000);
+// Actualización controlada desde index.html.
 
 // 📅 Subtítulo: mes actual (misma celda que usa portada_estadisticas.html)
 renderMesSubtitle("mes-actual", "Datos del mes de");
 
+
+window.__slideActive = false;
+window.subslideCount = () => tables.length;
+window.subslidePosition = () => index;
+window.stepSubslide = (direction) => {
+  const target = index + direction;
+  if(target < 0 || target >= tables.length) return false;
+  index = target; showTable(index); return true;
+};
+window.resetSubslide = (last = false) => {
+  if(!tables.length) return;
+  index = last ? tables.length - 1 : 0;
+  showTable(index);
+};
+window.addEventListener('message', event => {
+  if(event.source === window.parent && event.data?.type === 'presentation-visibility') window.__slideActive = !!event.data.active;
+});
 </script>
 
 </body>
