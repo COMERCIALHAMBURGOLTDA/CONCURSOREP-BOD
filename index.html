@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>TV Dashboard</title>
+
+<style>
+html, body {
+  margin:0;
+  width:100%;
+  height:100%;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  overflow:hidden;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+/* IFRAME */
+iframe {
+  width:100%;
+  height:100%;
+  border:none;
+  opacity:0;
+  transition:opacity 0.8s ease;
+}
+
+/* pool de iframes precargados: todos existen desde el inicio, pero
+   solo el "activo" es visible; el resto queda apilado detrás,
+   invisible, ya totalmente cargado y listo para mostrarse al instante */
+#pool{
+  position:absolute;
+  inset:0;
+}
+
+#pool iframe{
+  position:absolute;
+  inset:0;
+  opacity:0;
+  pointer-events:none;
+}
+
+#pool iframe.active{
+  opacity:1;
+  pointer-events:auto;
+}
+
+/* OVERLAY */
+#overlay {
+  position:fixed;
+  bottom:2vh;
+  left:2vw;
+  background:rgba(0,0,0,.6);
+  backdrop-filter: blur(10px);
+  color:#fff;
+  padding:1vh 1.5vw;
+  border-radius:12px;
+  font-size:1vw;
+  display:flex;
+  gap:1vw;
+  align-items:center;
+  box-shadow:0 0 20px rgba(0,0,0,0.5);
+}
+
+#overlay span {
+  color:#22c55e;
+  font-weight:bold;
+}
+
+/* CONTROLES PARA CAMBIO MANUAL DE PANTALLA */
+#navigation {
+  position:fixed;
+  top:12px;
+  right:2vw;
+  display:flex;
+  align-items:center;
+  gap:0.6vw;
+  z-index:20;
+}
+#navigation button {
+  border:1px solid rgba(255,255,255,0.24);
+  border-radius:12px;
+  background:rgba(2,6,23,0.78);
+  color:white;
+  min-width:52px;
+  min-height:46px;
+  padding:8px 14px;
+  font-size:clamp(18px,1.6vw,27px);
+  cursor:pointer;
+  backdrop-filter:blur(10px);
+  touch-action:manipulation;
+}
+#navigation button:hover, #navigation button:focus-visible {
+  background:rgba(34,197,94,.28);
+  outline:2px solid #22c55e;
+}
+#navigation button:disabled {opacity:.35;cursor:not-allowed;}
+#screenPosition {
+  color:white;
+  background:rgba(2,6,23,.72);
+  padding:10px 12px;
+  border-radius:10px;
+  font-size:clamp(13px,1vw,18px);
+  font-variant-numeric:tabular-nums;
+}
+@media(max-width:600px){
+  #navigation {top:8px;right:10px;gap:6px;}
+  #navigation button {min-width:48px;min-height:44px;}
+}
+
+/* HORA */
+.clock{
+  opacity:0.8;
+  font-size:0.9vw;
+}
+
+/* BARRA DE PROGRESO */
+.progress{
+  position:fixed;
+  bottom:0;
+  left:0;
+  height:4px;
+  background:#22c55e;
+  width:0%;
+  transition:width 1s linear;
+}
+
+/* ---------- pantalla de preparación inicial ---------- */
+#prep-screen{
+  position:fixed;
+  inset:0;
+  z-index:50;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  color:#fff;
+  text-align:center;
+  padding:4vh 6vw;
+}
+
+#prep-screen .prep-icon{
+  width:56px;
+  height:56px;
+  border:3px solid rgba(34,197,94,0.25);
+  border-top-color:#22c55e;
+  border-radius:50%;
+  animation:prep-spin 1s linear infinite;
+  margin-bottom:3vh;
+}
+
+@keyframes prep-spin{
+  to{ transform:rotate(360deg); }
+}
+
+#prep-screen h1{
+  font-size:clamp(24px,3.6vh,50px);
+  font-weight:900;
+  margin:0 0 1.2vh;
+}
+
+#prep-screen .prep-sub{
+  font-size:clamp(13px,1.6vh,20px);
+  opacity:0.75;
+  margin-bottom:3vh;
+}
+
+#prep-screen .prep-track{
+  width:min(50vw, 460px);
+  height:8px;
+  border-radius:4px;
+  background:rgba(255,255,255,0.08);
+  overflow:hidden;
+}
+
+#prep-screen .prep-fill{
+  height:100%;
+  width:0%;
+  background:linear-gradient(90deg,#22c55e,#4ade80);
+  transition:width .3s ease;
+}
+
+#prep-screen .prep-count{
+  margin-top:1.2vh;
+  font-size:clamp(12px,1.3vh,16px);
+  opacity:0.6;
+}
+
+#prep-screen.hide{
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .6s ease;
+}
+</style>
+</head>
+
+<body>
+
+<div id="prep-screen">
+  <div class="prep-icon"></div>
+  <h1>Preparando panel</h1>
+  <div class="prep-sub">Armando gráficos y tablas con los datos más recientes</div>
+  <div class="prep-track"><div class="prep-fill" id="prepFill"></div></div>
+  <div class="prep-count" id="prepCount">0 / 0 pantallas listas</div>
+</div>
+
+<div id="overlay">
+  <div class="clock" id="clock"></div>
+  ⏭ Siguiente en <span id="counter">0</span>s
+</div>
+
+<nav id="navigation" aria-label="Controles de presentación">
+  <button type="button" id="previousScreen" aria-label="Pantalla anterior" title="Anterior (flecha izquierda)" disabled>❮</button>
+  <span id="screenPosition" aria-live="polite">— / 9</span>
+  <button type="button" id="nextScreen" aria-label="Pantalla siguiente" title="Siguiente (flecha derecha)" disabled>❯</button>
+</nav>
+
+<div class="progress" id="progress"></div>
+
+<div id="pool"></div>
+
+<script src="core.js"></script>
+<script>
+
+/* 🔥 CONFIGURACIÓN DE PANTALLAS */
+const screens = [
+  { url: "portada_concurso.html", time: 10 },
+  { url: "premios_reparto_mesanterior.html", time: 15 },
+  { url: "premios_bodega_mesanterior.html", time: 15 },
+
+  { url: "portada_estadisticas.html", time: 10 },
+  { url: "resumen_entrega.html", time: 50 },
+  { url: "resumen_operacional.html", time: 50 },
+
+  // 🆕 CUADRATURA (pantalla de control)
+  { url: "cuadratura.html", time: 35 },
+
+  { url: "resumen_final.html", time: 50 },
+  { url: "puntuacion_final.html", time: 180 } // 4 tablas x 15 s + ranking x 120 s
+];
+
+let index = 0;
+let time = 0;
+let currentTime = 0;
+let cycleStarted = false;
+
+const previousButton = document.getElementById("previousScreen");
+const nextButton = document.getElementById("nextScreen");
+const screenPosition = document.getElementById("screenPosition");
+const counter = document.getElementById("counter");
+const clock = document.getElementById("clock");
+const progress = document.getElementById("progress");
+const pool = document.getElementById("pool");
+const prepScreen = document.getElementById("prep-screen");
+const prepFill = document.getElementById("prepFill");
+const prepCount = document.getElementById("prepCount");
+
+/* ================= COORDINADOR DE DATOS SEGUROS =================
+ * Una consulta por pestaña; cada 10 minutos; si falla, reintentos
+ * cada 8 segundos sin interrumpir las pantallas existentes.
+ * Dos lecturas separadas por 3 s deben superar la validación.
+ */
+const SHEET_BASE="https://docs.google.com/spreadsheets/d/e/2PACX-1vRU5OQHyRj-OXlfqf9yxT0E8YoBnDVksnXRSZBPDCHBfs5o0Kn70vTJ7oGXY6PfxDrLDj5PaOu6Rbtb/pub?gid=";
+const GIDS=[1402894914,358940228,960079246,822259408,618022909,500993062,772982248,258593693];
+const datasets=new Map();
+const VALIDATION_RULES={
+  1402894914: r=>usableCell(r[0]?.[1]) && usableCell(r[1]?.[1]),
+  358940228: r=>[1,2,3].some(i=>usableCell(r[i]?.[0]) && usableCell(r[i]?.[1])),
+  960079246: r=>[1,2,3].some(i=>usableCell(r[i]?.[0]) && usableCell(r[i]?.[1])),
+  822259408: r=>r.length>2 && usableCell(r[1]?.[0]) && r.slice(1).some(x=>x.slice(1).some(usableCell)),
+  618022909: r=>r.length>5 && usableCell(r[1]?.[0]) && r.slice(1).some(x=>x.slice(1).some(usableCell)),
+  500993062: r=>r.length>20 && usableCell(r[19]?.[0]) && r.slice(1,19).some(x=>x.slice(1).some(usableCell)),
+  772982248: r=>r.length>5 && usableCell(r[1]?.[0]) && r.slice(1).some(x=>x.slice(1).some(usableCell)),
+  258593693: r=>r.length>12 && [0,5,12,19].some(c=>r.slice(1).some(x=>usableCell(x[c])))
+};
+function gidFromUrl(url){ return Number(new URL(url,location.href).searchParams.get("gid")); }
+function validSheet(gid,rows){
+  if(!isValidData(rows))return false;
+  const rule=VALIDATION_RULES[gid];
+  if(!rule || !rule(rows))return false;
+  // No aceptar errores visibles de Sheets en celdas esenciales.
+  return !rows.some(row=>row.some(cell=>/^#(REF!|ERROR!|N\/A|VALUE!)/i.test(String(cell).trim())));
+}
+function getDataset(gid){return datasets.get(gid);}
+function deliver(ds){
+  for(const item of ds.listeners){
+    try {item.render(ds.rows); item.status?.(ds.source);}catch(err){console.error("Error al dibujar",ds.gid,err);}
+  }
+}
+window.dashboardData={
+  hasData(url){return !!getDataset(gidFromUrl(url))?.rows;},
+  subscribe(url,key,render,status){
+    const ds=getDataset(gidFromUrl(url));
+    if(!ds){status?.("empty");return;}
+    ds.listeners.push({render,status});
+    if(ds.rows){render(ds.rows);status?.(ds.source);}
+  }
+};
+function showPreparation(){
+  const ready=GIDS.filter(gid=>getDataset(gid).rows).length;
+  prepFill.style.width=(ready/GIDS.length*100)+"%";
+  prepCount.textContent=ready+" / "+GIDS.length+" fuentes verificadas";
+}
+async function readSheet(gid){
+  const url=SHEET_BASE+gid+"&single=true&output=csv&_="+Date.now();
+  const response=await fetch(url,{cache:"no-store"});
+  if(!response.ok)throw new Error("HTTP "+response.status);
+  const rows=parseCSV(await response.text());
+  if(!validSheet(gid,rows))throw new Error("CSV incompleto o recalculando: "+gid);
+  return rows;
+}
+async function refresh(ds){
+  if(ds.busy)return;
+  ds.busy=true;
+  try{
+    const first=await readSheet(ds.gid);
+    await new Promise(resolve=>setTimeout(resolve,3000));
+    const second=await readSheet(ds.gid);
+    // Dos observaciones válidas consecutivas, preferir la más reciente.
+    // No se afirma garantía absoluta de transacción de Sheets.
+    ds.rows=second;
+    ds.source="live";
+    saveCache(ds.cacheKey,second);
+    deliver(ds);
+    showPreparation();
+    perhapsCreateFrames();
+    clearTimeout(ds.retryTimer);
+    ds.retryTimer=null;
+  }catch(err){
+    console.warn("Se conservan los últimos datos válidos",ds.gid,err);
+    if(!ds.rows) ds.listeners.forEach(item=>item.status?.("retrying"));
+    clearTimeout(ds.retryTimer);
+    ds.retryTimer=setTimeout(()=>refresh(ds),8000);
+  }finally{ds.busy=false;}
+}
+GIDS.forEach(gid=>{
+  const cacheKey="tv_validated_gid_"+gid;
+  const cached=loadCache(cacheKey);
+  const rows=validSheet(gid,cached)?cached:null;
+  datasets.set(gid,{gid,cacheKey,rows,source:rows?"cache":"live",listeners:[],busy:false,retryTimer:null});
+});
+let framesCreated=false;
+function perhapsCreateFrames(){
+  if(framesCreated || !GIDS.every(gid=>getDataset(gid).rows))return;
+  framesCreated=true;
+  createFrames();
+}
+showPreparation();
+GIDS.forEach(gid=>refresh(getDataset(gid)));
+setInterval(()=>GIDS.forEach(gid=>refresh(getDataset(gid))),10*60*1000);
+
+/* 🏗️ Crear el pool de iframes: uno por pantalla, todos cargando desde
+   ya en paralelo. Cada uno queda "detrás" (opacity:0, sin recibir
+   clicks) hasta que le toque ser el activo. Como todos arrancan su
+   carga al mismo tiempo, para cuando termine la pre-carga inicial ya
+   están completamente armados (datos + gráfico/tabla renderizados). */
+let frames = [];
+function createFrames(){
+frames = screens.map((screen, i) => {
+  const f = document.createElement("iframe");
+  f.src = screen.url;
+  pool.appendChild(f);
+  return f;
+});
+}
+// Si existen copias verificadas de todas las fuentes, se puede arrancar enseguida.
+perhapsCreateFrames();
+
+/* 📡 Escuchar el aviso "screenReady" que cada pantalla manda con
+   notifyReady() (definida en core.js) apenas termina de construirse. */
+let readyCount = 0;
+const readyFlags = new Array(screens.length).fill(false);
+
+window.addEventListener("message", (event) => {
+  if(!event.data || event.data.type !== "screenReady") return;
+
+  const i = frames.findIndex(f => f.contentWindow === event.source);
+  if(i === -1 || readyFlags[i]) return; // ya contado, o no es de nuestro pool
+
+  readyFlags[i] = true;
+  readyCount++;
+
+  prepFill.style.width = (readyCount / screens.length * 100) + "%";
+  prepCount.textContent = readyCount + " / " + screens.length + " pantallas listas";
+
+  if(readyCount === screens.length){
+    startCycle();
+  }
+});
+
+/* Sin inicio forzado: no mostrar pantallas sin información validada. */
+
+/* 🚀 Arranca el ciclo visible: todos los iframes ya están cargados en
+   el pool, así que solo hay que mostrar el primero (transición
+   instantánea, sin esperar ningún onload) y encender el temporizador. */
+function startCycle(){
+  if(cycleStarted) return;
+  cycleStarted = true;
+  previousButton.disabled = false;
+  nextButton.disabled = false;
+
+  prepScreen.classList.add("hide");
+  activateFrame(0);
+}
+
+/* 🔁 Cambiar cuál iframe del pool es el visible. Como ya están todos
+   cargados de antemano, esto es instantáneo — no hay parpadeo ni
+   espera, ni siquiera en la primera vuelta del ciclo. */
+function activateFrame(i){
+  index = i;
+  frames.forEach((f, fi) => f.classList.toggle("active", fi === i));
+  frames.forEach((f, fi) => f.contentWindow.postMessage({type:"presentation-visibility",active:fi===i}, "*"));
+  screenPosition.textContent = (i + 1) + " / " + screens.length;
+
+  currentTime = screens[i].time;
+  time = currentTime;
+
+  counter.textContent = time;
+  progress.style.width = "0%";
+}
+
+/* Navegación manual: cambia inmediatamente y reinicia el contador.
+   Los datos continúan actualizándose sin recargar los iframes. */
+function moveScreen(direction){
+  if(!cycleStarted) return;
+  const active=frames[index]?.contentWindow;
+  try {
+    if(active && typeof active.stepSubslide === 'function' && active.stepSubslide(direction)) {
+      // Mantener el tiempo original de la pantalla principal.
+      currentTime = screens[index].time;
+      time = currentTime;
+      counter.textContent = time;
+      progress.style.width = '0%';
+      return;
+    }
+  } catch(err) { console.warn('Navegación interna:',err); }
+  const next=(index + direction + screens.length) % screens.length;
+  activateFrame(next);
+  try {
+    const dest=frames[next]?.contentWindow;
+    if(dest && typeof dest.resetSubslide === 'function') dest.resetSubslide(direction < 0);
+  } catch(err) { console.warn('Reinicio interno:',err); }
+}
+previousButton.addEventListener("click", () => moveScreen(-1));
+nextButton.addEventListener("click", () => moveScreen(1));
+document.addEventListener("keydown", (event) => {
+  if(event.key === "ArrowLeft") {event.preventDefault();moveScreen(-1);}
+  if(event.key === "ArrowRight") {event.preventDefault();moveScreen(1);}
+});
+
+/* ⏳ Timer */
+setInterval(()=>{
+
+  if(!cycleStarted) return;
+
+  time--;
+  counter.textContent = time;
+
+  /* barra progreso */
+  progress.style.width = ((currentTime - time) / currentTime * 100) + "%";
+
+  if(time <= 0){
+    index = (index + 1) % screens.length;
+    activateFrame(index);
+    try {
+      const dest=frames[index]?.contentWindow;
+      if(dest && typeof dest.resetSubslide === 'function') dest.resetSubslide(false);
+    } catch(err) {console.warn('Reinicio:',err);}
+  }
+
+},1000);
+
+/* 🕒 Reloj */
+setInterval(()=>{
+  const now = new Date();
+  clock.textContent = now.toLocaleTimeString();
+},1000);
+
+</script>
+
+</body>
+</html>

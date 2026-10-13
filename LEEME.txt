@@ -1,0 +1,7 @@
+SOLO PUNTUACION PARCIAL MES A 2 MINUTOS
+
+Las cuatro tablas anteriores de Puntuacion Final mantienen 15 segundos cada una. La ultima subdiapositiva, el ranking PUNTUACION PARCIAL MES, dura 120 segundos. Por eso el tiempo total de puntuacion_final.html en index.html pasa de 75 a 180 segundos.
+
+Todos los demas tiempos permanecen intactos. Se mantienen los controles manuales y la proteccion de Google Sheets.
+
+Nota: si hay tablas vacias filtradas, el total de 180 segundos puede exceder la suma de las subdiapositivas mostradas; verificar con datos reales.
